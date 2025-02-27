@@ -8262,7 +8262,14 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
           var pattern = /\s/.test(trimmedSrcset) ? srcPattern : /(,)/;
 
           // split srcset into tuple of uri and descriptor except for the last item
-          var rawUris = trimmedSrcset.split(pattern);
+          // Fix for CVE-2024-21490
+          var rawUris = trimmedSrcset.split(pattern).map(function (value) {
+            var uriAndDescriptor = value.trim().split(/\s/);
+            return uriAndDescriptor.map(function (v) {
+              return $$sanitizeUri(v, true);
+            }).join(' ');
+          });
+          //var rawUris = trimmedSrcset.split(pattern);
 
           // for each tuples
           var nbrUrisWith2parts = Math.floor(rawUris.length / 2);
