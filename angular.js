@@ -8253,8 +8253,9 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
           // sanitize a[href], img[src], and image[href|xlink:href] values
           // Fix for CVE-2025-0716: Added SVG image element sanitization
           this[key] = value = $$sanitizeUri(value, key === 'src');
-        } else if (nodeName === 'img' && key === 'srcset' && isDefined(value)) {
-          // sanitize img[srcset] values
+        } else if ((nodeName === 'img' || nodeName === 'source') && key === 'srcset' && isDefined(value)) {
+          // sanitize img[srcset] and source[srcset] values
+          // Fix for CVE-2024-8373: Added source element srcset sanitization
           var result = "";
 
           // first check if there are spaces because it's not the same pattern
