@@ -8263,45 +8263,65 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
         } else if ((nodeName === 'img' || nodeName === 'source') && key === 'srcset' && isDefined(value)) {
           // sanitize img[srcset] and source[srcset] values
           // Fix for CVE-2024-8373: Added source element srcset sanitization
-          var result = "";
+          var result = [];
 
-          // first check if there are spaces because it's not the same pattern
           var trimmedSrcset = trim(value);
-          //                (   999x   ,|   999w   ,|   ,|,   )
-          var srcPattern = /(\s+\d+x\s*,|\s+\d+w\s*,|\s+,|,\s+)/;
-          var pattern = /\s/.test(trimmedSrcset) ? srcPattern : /(,)/;
+          
+          // Parse srcset entries carefully to handle data URIs with commas
+          // Split by comma, but then merge back any data URI parts that were incorrectly split
+          var parts = trimmedSrcset.split(',');
+          var entries = [];
+          var i = 0;
+          
+          while (i < parts.length) {
+            var part = trim(parts[i]);
+            
+            // Check if this part looks like an incomplete data URI
+            // Data URIs have format: data:[<mediatype>][;base64],<data>
+            // After split, incomplete data URI will contain "data:" but not the actual data
+            var isDataUri = part.indexOf('data:') !== -1;
+            var hasBase64Marker = part.indexOf('base64') !== -1;
+            
+            // If this looks like start of data URI (has "data:" and possibly "base64" but no substantial data after)
+            // and there's a next part, check if next part is the data continuation
+            if (isDataUri && i + 1 < parts.length) {
+              var nextPart = trim(parts[i + 1]);
+              // If next part doesn't look like a new URL (doesn't start with http, /, or data:),
+              // it's probably the base64 data continuation
+              if (nextPart && !nextPart.match(/^\s*(https?:|\/|data:)/)) {
+                // Merge this part with the next part (reconstruct the data URI)
+                part = part + ',' + nextPart;
+                i++; // Skip the next part since we merged it
+              }
+            }
+            
+            if (part) {
+              entries.push(part);
+            }
+            i++;
+          }
 
-          // split srcset into tuple of uri and descriptor except for the last item
-          // Fix for CVE-2024-21490
-          var rawUris = trimmedSrcset.split(pattern).map(function (value) {
-            var uriAndDescriptor = value.trim().split(/\s/);
-            return uriAndDescriptor.map(function (v) {
-              return $$sanitizeUri(v, true);
-            }).join(' ');
+          // Process each entry
+          forEach(entries, function(entry) {
+            entry = trim(entry);
+            if (!entry) return;
+
+            // Split by whitespace to separate URI from descriptor
+            // First whitespace separates URI from descriptor
+            var firstSpaceIndex = entry.search(/\s/);
+            
+            if (firstSpaceIndex === -1) {
+              // No descriptor, just URI
+              result.push($$sanitizeUri(entry, true));
+            } else {
+              // Has descriptor - preserve everything after first space
+              var uri = entry.substring(0, firstSpaceIndex);
+              var descriptor = entry.substring(firstSpaceIndex + 1);
+              result.push($$sanitizeUri(trim(uri), true) + ' ' + trim(descriptor));
+            }
           });
-          //var rawUris = trimmedSrcset.split(pattern);
 
-          // for each tuples
-          var nbrUrisWith2parts = Math.floor(rawUris.length / 2);
-          for (var i = 0; i < nbrUrisWith2parts; i++) {
-            var innerIdx = i * 2;
-            // sanitize the uri
-            result += $$sanitizeUri(trim(rawUris[innerIdx]), true);
-            // add the descriptor
-            result += (" " + trim(rawUris[innerIdx + 1]));
-          }
-
-          // split the last item into uri and descriptor
-          var lastTuple = trim(rawUris[i * 2]).split(/\s/);
-
-          // sanitize the last uri
-          result += $$sanitizeUri(trim(lastTuple[0]), true);
-
-          // and add the last descriptor if any
-          if (lastTuple.length === 2) {
-            result += (" " + trim(lastTuple[1]));
-          }
-          this[key] = value = result;
+          this[key] = value = result.join(',');
         }
 
         if (writeAttr !== false) {
