@@ -8248,8 +8248,10 @@ function $CompileProvider($provide, $$sanitizeUriProvider) {
         nodeName = nodeName_(this.$$element);
 
         if ((nodeName === 'a' && (key === 'href' || key === 'xlinkHref')) ||
-            (nodeName === 'img' && key === 'src')) {
-          // sanitize a[href] and img[src] values
+            (nodeName === 'img' && key === 'src') ||
+            (nodeName === 'image' && (key === 'href' || key === 'xlinkHref'))) {
+          // sanitize a[href], img[src], and image[href|xlink:href] values
+          // Fix for CVE-2025-0716: Added SVG image element sanitization
           this[key] = value = $$sanitizeUri(value, key === 'src');
         } else if (nodeName === 'img' && key === 'srcset' && isDefined(value)) {
           // sanitize img[srcset] values
