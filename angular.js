@@ -998,7 +998,14 @@ function copy(source, destination) {
         return new source.constructor(source.valueOf());
 
       case '[object RegExp]':
-        var re = new RegExp(source.source, source.toString().match(/[^\/]*$/)[0]);
+        // CVE-2023-26116 Fix: Use flags property or build flags manually to avoid ReDoS
+        var flags = source.flags !== undefined ? source.flags : 
+          (source.global ? 'g' : '') + 
+          (source.ignoreCase ? 'i' : '') + 
+          (source.multiline ? 'm' : '') + 
+          (source.unicode ? 'u' : '') + 
+          (source.sticky ? 'y' : '');
+        var re = new RegExp(source.source, flags);
         re.lastIndex = source.lastIndex;
         return re;
 
